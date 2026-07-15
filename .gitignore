@@ -1,0 +1,7 @@
+# Local configuration and secrets
+.env
+.env.*
+*.local
+
+# Large RPC-generated fixture (regenerate locally when needed)
+testdata/robinhood_router_transactions.json
