@@ -1,4 +1,4 @@
-module uniswap-tx-parser
+module github.com/goodbye-babyer/uniswap-tx-parser
 
 go 1.25
 
