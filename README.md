@@ -27,17 +27,24 @@ for _, operation := range parsed.Operations {
 }
 ```
 
-The default registry contains the official Arbitrum One router addresses. Custom router
-deployments can be registered explicitly:
+`NewParser` does not contain a global or default router-address registry. Register every
+router address required by the application explicitly:
 
 ```go
 parser := uniswaptxparser.NewParser(
-    uniswaptxparser.WithRouter(address, uniswaptxparser.RouterDescriptor{
+    uniswaptxparser.WithRouter(universalRouterAddress, uniswaptxparser.RouterDescriptor{
         Kind: uniswaptxparser.RouterUniversal,
-        Version: "custom",
+        Version: "2.0",
+    }),
+    uniswaptxparser.WithRouter(v2RouterAddress, uniswaptxparser.RouterDescriptor{
+        Kind: uniswaptxparser.RouterV2,
+        Version: "02",
     }),
 )
 ```
+
+The package-level `ParseTransaction` function detects the router kind from the method
+selector and is useful when address filtering is handled by the caller.
 
 Unknown Universal Router commands produce a partial result (`Complete == false`) with a
 warning and preserved raw input. Malformed top-level calldata returns an error.

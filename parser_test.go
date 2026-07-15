@@ -13,6 +13,9 @@ import (
 var testA = common.HexToAddress("0x0000000000000000000000000000000000000001")
 var testB = common.HexToAddress("0x0000000000000000000000000000000000000002")
 var testRecipient = common.HexToAddress("0x0000000000000000000000000000000000000003")
+var testUniversalRouter = common.HexToAddress("0x0000000000000000000000000000000000000010")
+var testSwapRouter02 = common.HexToAddress("0x0000000000000000000000000000000000000020")
+var testV2Router02 = common.HexToAddress("0x0000000000000000000000000000000000000030")
 
 func wnum(n uint64) []byte          { w := make([]byte, 32); binary.BigEndian.PutUint64(w[24:], n); return w }
 func wbig(n *big.Int) []byte        { w := make([]byte, 32); n.FillBytes(w); return w }
@@ -68,7 +71,7 @@ func universalV3Input(recipient common.Address, a, b *big.Int, path []byte, paye
 
 func TestParseV2ExactInput(t *testing.T) {
 	args := cat(wbig(big.NewInt(100)), wbig(big.NewInt(90)), wnum(160), waddr(testRecipient), wnum(123), bodyAddresses([]common.Address{testA, testB}))
-	r, e := ParseTransaction(txTo(V2Router02, addSelector("swapExactTokensForTokens(uint256,uint256,address[],address,uint256)", args), big.NewInt(0)))
+	r, e := ParseTransaction(txTo(testV2Router02, addSelector("swapExactTokensForTokens(uint256,uint256,address[],address,uint256)", args), big.NewInt(0)))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -76,10 +79,24 @@ func TestParseV2ExactInput(t *testing.T) {
 		t.Fatalf("unexpected: %+v", r)
 	}
 }
+
+func TestNewParserUsesConfiguredRouterAddress(t *testing.T) {
+	args := cat(wbig(big.NewInt(100)), wbig(big.NewInt(90)), wnum(160), waddr(testRecipient), wnum(123), bodyAddresses([]common.Address{testA, testB}))
+	data := addSelector("swapExactTokensForTokens(uint256,uint256,address[],address,uint256)", args)
+	parser := NewParser(WithRouter(testV2Router02, RouterDescriptor{Kind: RouterV2, Version: "02"}))
+
+	if _, err := parser.ParseTransaction(txTo(testV2Router02, data, big.NewInt(0))); err != nil {
+		t.Fatalf("parse configured router: %v", err)
+	}
+	if _, err := parser.ParseTransaction(txTo(testSwapRouter02, data, big.NewInt(0))); err != ErrNotRouterTransaction {
+		t.Fatalf("unconfigured router error = %v, want %v", err, ErrNotRouterTransaction)
+	}
+}
+
 func TestParseUniversalV3ExactOutput(t *testing.T) {
 	path := cat(testB.Bytes(), []byte{0, 11, 184}, testA.Bytes())
 	data := universalCall([]byte{cmdV3ExactOut}, [][]byte{universalV3Input(testRecipient, big.NewInt(50), big.NewInt(80), path, true)})
-	r, e := ParseTransaction(txTo(UniversalRouter20, data, big.NewInt(0)))
+	r, e := ParseTransaction(txTo(testUniversalRouter, data, big.NewInt(0)))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -90,7 +107,7 @@ func TestParseUniversalV3ExactOutput(t *testing.T) {
 }
 func TestParseSwapRouter02ExactInputSingle(t *testing.T) {
 	args := cat(waddr(testA), waddr(testB), wnum(3000), waddr(testRecipient), wnum(10), wnum(9), wnum(0))
-	r, e := ParseTransaction(txTo(SwapRouter02, addSelector("exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))", args), big.NewInt(0)))
+	r, e := ParseTransaction(txTo(testSwapRouter02, addSelector("exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))", args), big.NewInt(0)))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -99,7 +116,7 @@ func TestParseSwapRouter02ExactInputSingle(t *testing.T) {
 	}
 }
 func TestUnknownUniversalCommandIsPartial(t *testing.T) {
-	r, e := ParseTransaction(txTo(UniversalRouter20, universalCall([]byte{0x7e}, [][]byte{{1}}), big.NewInt(0)))
+	r, e := ParseTransaction(txTo(testUniversalRouter, universalCall([]byte{0x7e}, [][]byte{{1}}), big.NewInt(0)))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -112,7 +129,7 @@ func TestParseUniversalV4ExactInputSingle(t *testing.T) {
 	tuple := cat(waddr(testA), waddr(testB), wnum(3000), wnum(60), waddr(common.Address{}), wnum(1), wnum(100), wnum(90), wnum(288), bodyBytes(hook))
 	actionParam := cat(wnum(32), tuple)
 	v4 := dynamicPair(bodyBytes([]byte{0x06}), bodyBytesArray([][]byte{actionParam}))
-	r, e := ParseTransaction(txTo(UniversalRouter20, universalCall([]byte{cmdV4Swap}, [][]byte{v4}), big.NewInt(0)))
+	r, e := ParseTransaction(txTo(testUniversalRouter, universalCall([]byte{cmdV4Swap}, [][]byte{v4}), big.NewInt(0)))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -142,13 +159,13 @@ func FuzzParseTransaction(f *testing.F) {
 				t.Fatalf("panic: %v", x)
 			}
 		}()
-		_, _ = NewParser(WithSelectorOnly(true)).ParseTransaction(txTo(UniversalRouter20, data, big.NewInt(0)))
+		_, _ = NewParser(WithSelectorOnly(true)).ParseTransaction(txTo(testUniversalRouter, data, big.NewInt(0)))
 	})
 }
 func BenchmarkUniversalV3ExactIn(b *testing.B) {
 	path := cat(testA.Bytes(), []byte{0, 11, 184}, testB.Bytes())
-	tx := txTo(UniversalRouter20, universalCall([]byte{cmdV3ExactIn}, [][]byte{universalV3Input(testRecipient, big.NewInt(100), big.NewInt(90), path, true)}), big.NewInt(0))
-	p := NewParser()
+	tx := txTo(testUniversalRouter, universalCall([]byte{cmdV3ExactIn}, [][]byte{universalV3Input(testRecipient, big.NewInt(100), big.NewInt(90), path, true)}), big.NewInt(0))
+	p := NewParser(WithRouter(testUniversalRouter, RouterDescriptor{Kind: RouterUniversal, Version: "test"}))
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -7,13 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-var (
-	UniversalRouter20  = common.HexToAddress("0xa51afafe0263b40edaef0df8781ea9aa03e381a3")
-	UniversalRouter211 = common.HexToAddress("0x8b844f885672f333bc0042cb669255f93a4c1e6b")
-	SwapRouter02       = common.HexToAddress("0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45")
-	V2Router02         = common.HexToAddress("0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24")
-)
-
 type Option func(*Parser)
 type Parser struct {
 	routers      map[common.Address]RouterDescriptor
@@ -22,10 +15,7 @@ type Parser struct {
 }
 
 func NewParser(opts ...Option) *Parser {
-	p := &Parser{routers: map[common.Address]RouterDescriptor{
-		UniversalRouter20: {RouterUniversal, "2.0"}, UniversalRouter211: {RouterUniversal, "2.1.1"},
-		SwapRouter02: {RouterSwap02, "02"}, V2Router02: {RouterV2, "02"},
-	}, maxDepth: 8}
+	p := &Parser{routers: make(map[common.Address]RouterDescriptor), maxDepth: 8}
 	for _, o := range opts {
 		o(p)
 	}
@@ -43,7 +33,7 @@ func WithMaxDepth(n int) Option {
 	}
 }
 func ParseTransaction(tx *types.Transaction) (*ParsedTransaction, error) {
-	return NewParser().ParseTransaction(tx)
+	return NewParser(WithSelectorOnly(true)).ParseTransaction(tx)
 }
 
 func (p *Parser) ParseTransaction(tx *types.Transaction) (*ParsedTransaction, error) {
